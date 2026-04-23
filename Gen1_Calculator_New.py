@@ -242,7 +242,6 @@ with tab_results:
     
     try:
         df = pd.read_csv(DATA_PATH) if DATA_PATH.endswith(".csv") else pd.read_excel(DATA_PATH)
-        st.success(f"✅ Data loaded from `{DATA_PATH}` — **{len(df):,} rows**, **{df.columns.size} columns**")
     except Exception as e:
         st.error(f"Could not read file: {e}"); st.stop()
 
