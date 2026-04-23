@@ -120,10 +120,21 @@ def compute_pick_calcs(df, total_pickers, labour_cost, max_pickrate, mid_speeds)
     out["Best Profit"]     = out[all_pp].max(axis=1).fillna(0)
     out["Best Profit Mid"] = out[mid_pp].max(axis=1).fillna(0) if mid_pp else 0
    # Guard against all-NA rows before calling idxmax (pandas 3.x breaking change)
+   # Pandas 3.x safe idxmax — check each row individually
     has_any_profit = out[all_pp].notna().any(axis=1)
-    opt = out[all_pp].where(has_any_profit, other=np.nan)
-    opt = opt[all_pp].idxmax(axis=1, skipna=True).where(has_any_profit)
-    out["Optimal Speed"]   = opt.str.extract(r"(\d+)", expand=False).astype("Int64")
+    
+    def safe_idxmax(row):
+        if row.notna().any():
+            return row.idxmax()
+        return pd.NA
+    
+    opt = out[all_pp].apply(safe_idxmax, axis=1)
+    out["Optimal Speed"] = (
+        opt.astype(str)
+        .str.extract(r"(\d+)", expand=False)
+        .where(has_any_profit)
+        .astype("Int64")
+    )
     out["No of pickers"]   = np.where(out["Best Profit"] > 0, out["Distinct Picker Count"], np.nan)
     return out
 
