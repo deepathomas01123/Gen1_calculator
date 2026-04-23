@@ -220,7 +220,7 @@ tab_results, tab_optimiser = st.tabs(["📊 Harvest Results", "🧩 Block Optimi
 # ═══════════════════════════════════════════════════════════════════════════
 with tab_results:
     st.title("🌱 Gen 1 Calculator — Harvest Results")
-    DATA_PATH = "data/harvest_data.csv"   # adjust filename to match your actual file
+    DATA_PATH = "Actuals_Data.xlsx"   # adjust filename to match your actual file
 
     if not os.path.exists(DATA_PATH):
         st.error(f"Data file not found at: `{DATA_PATH}`")
