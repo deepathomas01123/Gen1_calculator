@@ -6,6 +6,7 @@ Streamlit application with editable financial parameters
 import streamlit as st
 import pandas as pd
 import numpy as np
+import os
 
 st.set_page_config(
     page_title="Rubus Picking KPI",
@@ -219,16 +220,15 @@ tab_results, tab_optimiser = st.tabs(["📊 Harvest Results", "🧩 Block Optimi
 # ═══════════════════════════════════════════════════════════════════════════
 with tab_results:
     st.title("🌱 Gen 1 Calculator — Harvest Results")
-    uploaded_file = st.file_uploader(
-        "Upload your harvest dataset (CSV or Excel)", type=["csv","xlsx"],
-        help="Required columns: " + ", ".join(REQUIRED_COLUMNS))
+    DATA_PATH = "data/harvest_data.csv"   # adjust filename to match your actual file
 
-    if not uploaded_file:
-        st.info("👆 Upload a harvest file to get started.")
+    if not os.path.exists(DATA_PATH):
+        st.error(f"Data file not found at: `{DATA_PATH}`")
         st.stop()
-
+    
     try:
-        df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+        df = pd.read_csv(DATA_PATH) if DATA_PATH.endswith(".csv") else pd.read_excel(DATA_PATH)
+        st.success(f"✅ Data loaded from `{DATA_PATH}` — **{len(df):,} rows**, **{df.columns.size} columns**")
     except Exception as e:
         st.error(f"Could not read file: {e}"); st.stop()
 
