@@ -390,25 +390,12 @@ with tab_optimiser:
     if fdf.empty:
         st.warning("No data available. Adjust filters in Harvest Results tab."); st.stop()
 
-    # ── Only "None (all data)" and "Plant" are available as grouping dimensions ──
-    groupable = [c for c in ["Plant"] if c in fdf.columns]
-    group_dim = st.selectbox("Group analysis by", ["None (all data)"] + groupable, key="opt_group_dim")
-    if group_dim == "None (all data)":
-        st.info(
-            "ℹ️ **All Data mode** treats every block across all divisions as a single pool. "
-            "A device can only be allocated to one block per pick date — if two blocks share "
-            "even one pick date, only the higher-profit block gets a device. "
-            "This may result in fewer allocations than expected.\n\n"
-            "💡 **Tip:** Group by Plant if your devices operate independently per plant "
-            "and can run simultaneously on the same date across different plants."
-        )
-    else:
-        st.info(
-            f"ℹ️ **Grouped by {group_dim} mode** runs the allocator independently per {group_dim}. "
-            "Each group has its own separate date pool, so blocks in different groups "
-            "can be allocated on the same dates without conflicting."
-        )
-    
+    group_dim = "Plant"
+    st.info(
+        "ℹ️ Analysis is grouped by **Plant**. Each plant runs the allocator independently "
+        "with its own separate date pool, so blocks in different plants can be allocated "
+        "on the same dates without conflicting."
+    )
     st.divider()
 
     # ── optimiser renderer ────────────────────────────────────────────────
@@ -554,11 +541,10 @@ with tab_optimiser:
 
         st.divider()
 
-    # ── Dispatch ──────────────────────────────────────────────────────────
-    if group_dim == "None (all data)":
-        run_optimiser(fdf, "All_Filtered_Data")
-    else:
-        groups   = sorted(fdf[group_dim].dropna().unique())
-        selected = st.multiselect(f"Select {group_dim}(s) to analyse", options=groups, default=list(groups))
-        for grp in selected:
-            run_optimiser(fdf[fdf[group_dim].astype(str) == str(grp)], f"{group_dim}_{grp}")
+    # ── Dispatch — always grouped by Plant ───────────────────────────────
+    if "Plant" not in fdf.columns:
+        st.warning("No 'Plant' column found in data."); st.stop()
+    groups   = sorted(fdf["Plant"].dropna().unique())
+    selected = st.multiselect("Select Plant(s) to analyse", options=groups, default=list(groups))
+    for grp in selected:
+        run_optimiser(fdf[fdf["Plant"].astype(str) == str(grp)], f"Plant_{grp}")
