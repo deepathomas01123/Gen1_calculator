@@ -45,6 +45,8 @@ hr { border-color: #e5e7eb; }
 .device-card { background: #f0f7f0; border: 1px solid #a5d6a7; border-left: 4px solid #1a4731; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
 .device-card-warn { background: #fff8e1; border: 1px solid #ffe082; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
 
+/* ── Hide Streamlit toolbar (Fork / GitHub / menu) ── */
+[data-testid="stToolbar"] { display: none !important; }
 /* ── Financial table alignment ── */
 .fin-header { font-weight: 700; font-size: 0.82rem; text-transform: uppercase;
               letter-spacing: 0.06em; color: #6b7280; padding-bottom: 4px;
