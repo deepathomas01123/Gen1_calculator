@@ -393,14 +393,14 @@ with tab_optimiser:
     groupable = [c for c in ["Plant","Division"] if c in fdf.columns]
     group_dim = st.selectbox("Group analysis by", ["None (all data)"] + groupable, key="opt_group_dim")
     if group_dim == "None (all data)":
-    st.info(
-        "ℹ️ **All Data mode** treats every block across all divisions as a single pool. "
-        "A device can only be allocated to one block per pick date — if two blocks share "
-        "even one pick date, only the higher-profit block gets a device. "
-        "This may result in fewer allocations than expected.\n\n"
-        "💡 **Tip:** Group by Division if your devices operate independently per division "
-        "and can run simultaneously on the same date across different divisions."
-    )
+        st.info(
+            "ℹ️ **All Data mode** treats every block across all divisions as a single pool. "
+            "A device can only be allocated to one block per pick date — if two blocks share "
+            "even one pick date, only the higher-profit block gets a device. "
+            "This may result in fewer allocations than expected.\n\n"
+            "💡 **Tip:** Group by Division if your devices operate independently per division "
+            "and can run simultaneously on the same date across different divisions."
+        )
     else:
         st.info(
             f"ℹ️ **Grouped by {group_dim} mode** runs the allocator independently per {group_dim}. "
