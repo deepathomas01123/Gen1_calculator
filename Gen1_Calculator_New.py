@@ -390,7 +390,8 @@ with tab_optimiser:
     if fdf.empty:
         st.warning("No data available. Adjust filters in Harvest Results tab."); st.stop()
 
-    groupable = [c for c in ["Plant","Division"] if c in fdf.columns]
+    # ── Only "None (all data)" and "Plant" are available as grouping dimensions ──
+    groupable = [c for c in ["Plant"] if c in fdf.columns]
     group_dim = st.selectbox("Group analysis by", ["None (all data)"] + groupable, key="opt_group_dim")
     if group_dim == "None (all data)":
         st.info(
@@ -398,8 +399,8 @@ with tab_optimiser:
             "A device can only be allocated to one block per pick date — if two blocks share "
             "even one pick date, only the higher-profit block gets a device. "
             "This may result in fewer allocations than expected.\n\n"
-            "💡 **Tip:** Group by Division if your devices operate independently per division "
-            "and can run simultaneously on the same date across different divisions."
+            "💡 **Tip:** Group by Plant if your devices operate independently per plant "
+            "and can run simultaneously on the same date across different plants."
         )
     else:
         st.info(
