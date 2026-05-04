@@ -1,11 +1,13 @@
 """
 Rubus Picking KPI — Gen 1 Calculator
 Streamlit application with editable financial parameters
+Enhanced: Best single block, optimal combination & highest achievable profit scenario
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
+import itertools
 import os
 
 st.set_page_config(
@@ -45,14 +47,29 @@ hr { border-color: #e5e7eb; }
 .device-card { background: #f0f7f0; border: 1px solid #a5d6a7; border-left: 4px solid #1a4731; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
 .device-card-warn { background: #fff8e1; border: 1px solid #ffe082; border-left: 4px solid #f59e0b; border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
 
-/* ── Hide Streamlit toolbar (Fork / GitHub / menu) ── */
-[data-testid="stToolbar"] { display: none !important; }
 /* ── Financial table alignment ── */
 .fin-header { font-weight: 700; font-size: 0.82rem; text-transform: uppercase;
               letter-spacing: 0.06em; color: #6b7280; padding-bottom: 4px;
               border-bottom: 2px solid #e5e7eb; margin-bottom: 6px; }
 .fin-total  { font-weight: 700; font-size: 1rem; color: #1a4731;
               background: #f0f7f0; border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+
+/* ── Scenario cards ── */
+.scenario-best { background: linear-gradient(135deg, #e8f5e9 0%, #f0f7f0 100%);
+                 border: 2px solid #1a4731; border-radius: 14px; padding: 20px 24px; margin-bottom: 16px; }
+.scenario-optimal { background: linear-gradient(135deg, #e3f2fd 0%, #f0f7ff 100%);
+                    border: 2px solid #1565c0; border-radius: 14px; padding: 20px 24px; margin-bottom: 16px; }
+.scenario-highest { background: linear-gradient(135deg, #fff8e1 0%, #fffde7 100%);
+                    border: 2px solid #f59e0b; border-radius: 14px; padding: 20px 24px; margin-bottom: 16px; }
+.scenario-title { font-family: 'DM Serif Display', serif; font-size: 1.15rem; margin-bottom: 6px; }
+.scenario-profit { font-size: 1.8rem; font-weight: 700; font-family: 'DM Serif Display', serif; }
+.combo-block { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
+               padding: 10px 14px; margin: 4px 0; font-size: 0.88rem; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.75rem;
+         font-weight: 700; letter-spacing: 0.05em; margin-left: 8px; }
+.badge-green  { background: #d1fae5; color: #065f46; }
+.badge-blue   { background: #dbeafe; color: #1e40af; }
+.badge-gold   { background: #fef3c7; color: #92400e; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -67,24 +84,10 @@ REQUIRED_COLUMNS = [
 def fmt_dollar(v): return f"${v:,.2f}"
 def fmt_int(v):    return f"{v:,}"
 
-# ── Column widths used for EVERY financial row: Item | Value | Life | Annual | Total
 COL_W = [2.5, 1.3, 1.1, 1.4, 1.6]
-
-def _fin_header(cols):
-    """Render the header row for a financial table."""
-    cols[0].markdown("**Item**")
-    cols[1].markdown("**Value ($)**")
-    cols[2].markdown("**Life (yrs)**")
-    cols[3].markdown("**Annual Rate**")
-    cols[4].markdown("**Total**")
 
 def _fin_row(label, key_val, key_life, default_val, default_life,
              multiplier, suffix="", note=""):
-    """
-    Render one aligned financial row.
-    Returns (annual_rate, total).
-    multiplier: scalar applied to annual_rate → total
-    """
     cols = st.columns(COL_W)
     display_label = f"{label}{f' ({note})' if note else ''}"
     cols[0].write(display_label)
@@ -121,15 +124,12 @@ def compute_pick_calcs(df, total_pickers, labour_cost, max_pickrate, mid_speeds)
     mid_pp = [f"Pickable Profit@{s}" for s in mid_speeds]
     out["Best Profit"]     = out[all_pp].max(axis=1).fillna(0)
     out["Best Profit Mid"] = out[mid_pp].max(axis=1).fillna(0) if mid_pp else 0
-   # Guard against all-NA rows before calling idxmax (pandas 3.x breaking change)
-   # Pandas 3.x safe idxmax — check each row individually
+
     has_any_profit = out[all_pp].notna().any(axis=1)
-    
     def safe_idxmax(row):
         if row.notna().any():
             return row.idxmax()
         return pd.NA
-    
     opt = out[all_pp].apply(safe_idxmax, axis=1)
     out["Optimal Speed"] = (
         opt.astype(str)
@@ -209,6 +209,253 @@ def greedy_allocate(block_df, n_devices):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# NEW: Scenario Analysis Functions
+# ─────────────────────────────────────────────────────────────────────────────
+
+def find_best_single_block(block_df):
+    """Return the single block with the highest Best Profit."""
+    if block_df.empty or "Best Profit" not in block_df.columns:
+        return None
+    idx = block_df["Best Profit"].idxmax()
+    row = block_df.loc[idx]
+    label = row["Location"]
+    cs = row.get("Cropping System", "")
+    if cs: label += f" ({cs})"
+    return {
+        "label": label,
+        "location": row["Location"],
+        "cropping_system": cs,
+        "best_profit": float(row["Best Profit"]),
+        "pick_events": len(row["Pick Date"]) if isinstance(row.get("Pick Date"), set) else 0,
+    }
+
+
+def find_optimal_combination(block_df, n_devices, max_combo_size=8):
+    """
+    Exhaustive search (up to max_combo_size blocks) for the combination of
+    n_devices non-date-overlapping blocks that maximises total Best Profit.
+    Falls back to greedy for large block sets.
+    """
+    if block_df.empty or n_devices <= 0:
+        return [], 0.0
+
+    records = []
+    for _, row in block_df.iterrows():
+        ds = row.get("Pick Date", set())
+        if not isinstance(ds, set): ds = set()
+        label = row["Location"]
+        cs = row.get("Cropping System", "")
+        if cs: label += f" ({cs})"
+        records.append({
+            "label": label,
+            "location": row["Location"],
+            "cropping_system": cs,
+            "best_profit": float(row["Best Profit"]),
+            "dates": ds,
+        })
+
+    n = len(records)
+    combo_size = min(n_devices, n)
+
+    # Limit exhaustive search to manageable sizes
+    if n <= max_combo_size:
+        best_profit = -1.0
+        best_combo  = []
+        for combo in itertools.combinations(range(n), combo_size):
+            # Check no date overlaps within this combo
+            all_dates = set()
+            valid = True
+            for i in combo:
+                overlap = all_dates & records[i]["dates"]
+                if overlap:
+                    valid = False
+                    break
+                all_dates |= records[i]["dates"]
+            if valid:
+                total = sum(records[i]["best_profit"] for i in combo)
+                if total > best_profit:
+                    best_profit = total
+                    best_combo  = [records[i] for i in combo]
+        return best_combo, max(best_profit, 0.0)
+    else:
+        # Greedy fallback for large sets — same as greedy_allocate logic
+        recs = sorted(records, key=lambda x: x["best_profit"], reverse=True)
+        chosen, allocated_dates = [], set()
+        for rec in recs:
+            if len(chosen) >= combo_size:
+                break
+            if not (rec["dates"] & allocated_dates):
+                chosen.append(rec)
+                allocated_dates |= rec["dates"]
+        return chosen, sum(r["best_profit"] for r in chosen)
+
+
+def find_highest_achievable_scenario(block_df):
+    """
+    Highest achievable profit scenario: ignores device count constraint entirely.
+    Returns all non-overlapping blocks sorted greedily by profit — the theoretical max.
+    """
+    if block_df.empty:
+        return [], 0.0
+
+    records = []
+    for _, row in block_df.iterrows():
+        ds = row.get("Pick Date", set())
+        if not isinstance(ds, set): ds = set()
+        label = row["Location"]
+        cs = row.get("Cropping System", "")
+        if cs: label += f" ({cs})"
+        records.append({
+            "label": label,
+            "location": row["Location"],
+            "cropping_system": cs,
+            "best_profit": float(row["Best Profit"]),
+            "dates": ds,
+        })
+
+    records.sort(key=lambda x: x["best_profit"], reverse=True)
+    chosen, allocated_dates = [], set()
+    for rec in records:
+        if rec["best_profit"] <= 0:
+            continue
+        if not (rec["dates"] & allocated_dates):
+            chosen.append(rec)
+            allocated_dates |= rec["dates"]
+
+    return chosen, sum(r["best_profit"] for r in chosen)
+
+
+def render_scenario_analysis(block_df, n_devices, label):
+    """Render the three scenario cards: Best Single, Optimal Combo, Highest Achievable."""
+    st.subheader(f"🎯 Scenario Analysis — {label}")
+
+    # ── 1. Best single block ──────────────────────────────────────────────
+    best_single = find_best_single_block(block_df)
+
+    # ── 2. Optimal combination for n_devices ─────────────────────────────
+    opt_combo, opt_profit = find_optimal_combination(block_df, n_devices)
+
+    # ── 3. Highest achievable (no device cap) ────────────────────────────
+    max_combo, max_profit = find_highest_achievable_scenario(block_df)
+
+    c1, c2, c3 = st.columns(3)
+
+    # Card 1 — Best single block
+    with c1:
+        if best_single:
+            st.markdown(f"""
+            <div class="scenario-best">
+              <div class="scenario-title">🥇 Best Single Block
+                <span class="badge badge-green">1 device</span>
+              </div>
+              <div class="scenario-profit" style="color:#1a4731;">{fmt_dollar(best_single['best_profit'])}</div>
+              <div style="margin-top:10px;font-size:0.9rem;color:#374151;">
+                <b>{best_single['label']}</b><br>
+                <span style="color:#6b7280;">{best_single['pick_events']} pick event(s)</span>
+              </div>
+              <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
+                The single block with the highest Best Profit in isolation — 
+                the baseline for any deployment decision.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("No profitable blocks found.")
+
+    # Card 2 — Optimal combination
+    with c2:
+        if opt_combo:
+            blocks_html = "".join(
+                f'<div class="combo-block">📍 <b>{r["label"]}</b> — {fmt_dollar(r["best_profit"])}</div>'
+                for r in opt_combo
+            )
+            st.markdown(f"""
+            <div class="scenario-optimal">
+              <div class="scenario-title">🔀 Optimal Combination
+                <span class="badge badge-blue">{len(opt_combo)} of {n_devices} device(s)</span>
+              </div>
+              <div class="scenario-profit" style="color:#1565c0;">{fmt_dollar(opt_profit)}</div>
+              <div style="margin-top:10px;">{blocks_html}</div>
+              <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
+                Best non-overlapping combination for your device count — 
+                exhaustive search (greedy fallback for large block sets).
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("No valid non-overlapping combination found.")
+
+    # Card 3 — Highest achievable
+    with c3:
+        if max_combo:
+            blocks_html = "".join(
+                f'<div class="combo-block">📍 <b>{r["label"]}</b> — {fmt_dollar(r["best_profit"])}</div>'
+                for r in max_combo
+            )
+            gap = max_profit - opt_profit
+            gap_str = f"+{fmt_dollar(gap)} vs optimal" if gap > 0.01 else "= optimal (fully captured)"
+            st.markdown(f"""
+            <div class="scenario-highest">
+              <div class="scenario-title">🏆 Highest Achievable
+                <span class="badge badge-gold">{len(max_combo)} block(s), unlimited devices</span>
+              </div>
+              <div class="scenario-profit" style="color:#92400e;">{fmt_dollar(max_profit)}</div>
+              <div style="margin-top:6px;font-size:0.82rem;color:#78350f;font-weight:600;">{gap_str}</div>
+              <div style="margin-top:10px;">{blocks_html}</div>
+              <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
+                Theoretical maximum: all non-overlapping profitable blocks deployed 
+                simultaneously — your ceiling for any investment decision.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("No profitable non-overlapping blocks found.")
+
+    # ── Comparison table ──────────────────────────────────────────────────
+    with st.expander("📊 Scenario Comparison Table", expanded=False):
+        rows = []
+        if best_single:
+            rows.append({
+                "Scenario": "🥇 Best Single Block",
+                "Blocks": 1,
+                "Devices Required": 1,
+                "Total Profit": best_single["best_profit"],
+                "vs Optimal": best_single["best_profit"] - opt_profit,
+                "vs Highest Achievable": best_single["best_profit"] - max_profit,
+            })
+        if opt_combo:
+            rows.append({
+                "Scenario": f"🔀 Optimal Combination ({n_devices} device(s))",
+                "Blocks": len(opt_combo),
+                "Devices Required": n_devices,
+                "Total Profit": opt_profit,
+                "vs Optimal": 0.0,
+                "vs Highest Achievable": opt_profit - max_profit,
+            })
+        if max_combo:
+            rows.append({
+                "Scenario": f"🏆 Highest Achievable ({len(max_combo)} devices)",
+                "Blocks": len(max_combo),
+                "Devices Required": len(max_combo),
+                "Total Profit": max_profit,
+                "vs Optimal": max_profit - opt_profit,
+                "vs Highest Achievable": 0.0,
+            })
+        if rows:
+            cdf = pd.DataFrame(rows)
+            st.dataframe(
+                cdf.style.format({
+                    "Total Profit": "${:,.2f}",
+                    "vs Optimal": "${:+,.2f}",
+                    "vs Highest Achievable": "${:+,.2f}",
+                }),
+                use_container_width=True, hide_index=True
+            )
+
+    st.divider()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 st.sidebar.markdown("## 🌿 Rubus KPI")
@@ -236,12 +483,12 @@ tab_results, tab_optimiser = st.tabs(["📊 Harvest Results", "🧩 Block Optimi
 # ═══════════════════════════════════════════════════════════════════════════
 with tab_results:
     st.title("🌱 Gen 1 Calculator — Harvest Results")
-    DATA_PATH = "data/Actuals_Data.xlsx"   # adjust filename to match your actual file
+    DATA_PATH = "data/Actuals_Data.xlsx"
 
     if not os.path.exists(DATA_PATH):
         st.error(f"Data file not found at: `{DATA_PATH}`")
         st.stop()
-    
+
     try:
         df = pd.read_csv(DATA_PATH) if DATA_PATH.endswith(".csv") else pd.read_excel(DATA_PATH)
     except Exception as e:
@@ -392,12 +639,24 @@ with tab_optimiser:
     if fdf.empty:
         st.warning("No data available. Adjust filters in Harvest Results tab."); st.stop()
 
-    group_dim = "Plant"
-    st.info(
-        "ℹ️ Analysis is grouped by **Plant**. Each plant runs the allocator independently "
-        "with its own separate date pool, so blocks in different plants can be allocated "
-        "on the same dates without conflicting."
-    )
+    groupable = [c for c in ["Plant"] if c in fdf.columns]
+    group_dim = st.selectbox("Group analysis by", ["None (all data)"] + groupable, key="opt_group_dim")
+    if group_dim == "None (all data)":
+        st.info(
+            "ℹ️ **All Data mode** treats every block across all divisions as a single pool. "
+            "A device can only be allocated to one block per pick date — if two blocks share "
+            "even one pick date, only the higher-profit block gets a device. "
+            "This may result in fewer allocations than expected.\n\n"
+            "💡 **Tip:** Group by Plant if your devices operate independently per plant "
+            "and can run simultaneously on the same date across different plants."
+        )
+    else:
+        st.info(
+            f"ℹ️ **Grouped by {group_dim} mode** runs the allocator independently per {group_dim}. "
+            "Each group has its own separate date pool, so blocks in different groups "
+            "can be allocated on the same dates without conflicting."
+        )
+
     st.divider()
 
     # ── optimiser renderer ────────────────────────────────────────────────
@@ -427,6 +686,9 @@ with tab_optimiser:
                                    "Distinct Picker Count","Total Harvest Cost"] if c in block_df.columns]
         fmt = {c: "${:,.2f}" for c in ["Best Profit",mid_label,"Total Harvest Cost"] if c in block_df.columns}
         st.dataframe(block_df[disp_cols].style.format(fmt), use_container_width=True, hide_index=True)
+
+        # ── SCENARIO ANALYSIS (NEW) ───────────────────────────────────────
+        render_scenario_analysis(block_df, n_devices, label)
 
         st.subheader(f"🤖 Device Allocation — {label} ({n_devices} device(s))")
         allocations            = greedy_allocate(block_df, n_devices)
@@ -471,10 +733,7 @@ with tab_optimiser:
             total_blocks           = len(block_df)
             trolley_qty            = max(1, round(allocated_max_pickers * 1.2))
 
-            # ── SAVINGS ───────────────────────────────────────────────────
             with st.expander("➕ Equipment Savings (Editable)", expanded=True):
-
-                # Header
                 hcols = st.columns(COL_W)
                 hcols[0].markdown("**Item**")
                 hcols[1].markdown("**Value ($)**")
@@ -501,9 +760,7 @@ with tab_optimiser:
                 st.markdown(f'<div class="fin-total">Total Equipment Savings: {fmt_dollar(total_savings)}</div>',
                             unsafe_allow_html=True)
 
-            # ── COSTS ─────────────────────────────────────────────────────
             with st.expander("➖ Equipment Costs (Editable)", expanded=True):
-
                 hcols = st.columns(COL_W)
                 hcols[0].markdown("**Item**")
                 hcols[1].markdown("**Value ($)**")
@@ -524,7 +781,6 @@ with tab_optimiser:
                 st.markdown(f'<div class="fin-total">Total Equipment Costs: {fmt_dollar(total_costs)}</div>',
                             unsafe_allow_html=True)
 
-            # ── FINAL RESULTS ─────────────────────────────────────────────
             net          = total_savings - total_costs
             total_benefit = total_allocated_profit + net
 
@@ -543,10 +799,11 @@ with tab_optimiser:
 
         st.divider()
 
-    # ── Dispatch — always grouped by Plant ───────────────────────────────
-    if "Plant" not in fdf.columns:
-        st.warning("No 'Plant' column found in data."); st.stop()
-    groups   = sorted(fdf["Plant"].dropna().unique())
-    selected = st.multiselect("Select Plant(s) to analyse", options=groups, default=list(groups))
-    for grp in selected:
-        run_optimiser(fdf[fdf["Plant"].astype(str) == str(grp)], f"Plant_{grp}")
+    # ── Dispatch ──────────────────────────────────────────────────────────
+    if group_dim == "None (all data)":
+        run_optimiser(fdf, "All_Filtered_Data")
+    else:
+        groups   = sorted(fdf[group_dim].dropna().unique())
+        selected = st.multiselect(f"Select {group_dim}(s) to analyse", options=groups, default=list(groups))
+        for grp in selected:
+            run_optimiser(fdf[fdf[group_dim].astype(str) == str(grp)], f"{group_dim}_{grp}")
