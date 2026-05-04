@@ -354,8 +354,7 @@ def render_scenario_analysis(block_df, n_devices, label):
                 <span style="color:#6b7280;">{best_single['pick_events']} pick event(s)</span>
               </div>
               <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
-                The single block with the highest Best Profit in isolation — 
-                the baseline for any deployment decision.
+                The single block with the highest Best Profit in isolation 
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -377,8 +376,7 @@ def render_scenario_analysis(block_df, n_devices, label):
               <div class="scenario-profit" style="color:#1565c0;">{fmt_dollar(opt_profit)}</div>
               <div style="margin-top:10px;">{blocks_html}</div>
               <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
-                Best non-overlapping combination for your device count — 
-                exhaustive search (greedy fallback for large block sets).
+                Best non-overlapping combination 
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -404,7 +402,7 @@ def render_scenario_analysis(block_df, n_devices, label):
               <div style="margin-top:10px;">{blocks_html}</div>
               <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
                 Theoretical maximum: all non-overlapping profitable blocks deployed 
-                simultaneously — your ceiling for any investment decision.
+                simultaneously
               </div>
             </div>
             """, unsafe_allow_html=True)
