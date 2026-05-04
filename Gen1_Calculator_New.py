@@ -437,7 +437,6 @@ def render_scenario_analysis(block_df, n_devices, label):
                 "vs Optimal": 0.0,
                 "vs Highest Achievable": opt_profit - max_profit,
             })
-            })
         if max_combo:
             rows.append({
                 "Scenario": f"🏆 Highest Achievable ({len(max_combo)} devices)",
