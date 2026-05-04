@@ -70,6 +70,13 @@ hr { border-color: #e5e7eb; }
 .badge-green  { background: #d1fae5; color: #065f46; }
 .badge-blue   { background: #dbeafe; color: #1e40af; }
 .badge-gold   { background: #fef3c7; color: #92400e; }
+
+/* Hide GitHub fork button */
+.viewerBadge_container__r5tak,
+.viewerBadge_link__qRIco,
+[data-testid="stToolbar"] {
+    display: none !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
