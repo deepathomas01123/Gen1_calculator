@@ -70,13 +70,6 @@ hr { border-color: #e5e7eb; }
 .badge-green  { background: #d1fae5; color: #065f46; }
 .badge-blue   { background: #dbeafe; color: #1e40af; }
 .badge-gold   { background: #fef3c7; color: #92400e; }
-
-/* Hide GitHub fork button */
-.viewerBadge_container__r5tak,
-.viewerBadge_link__qRIco,
-[data-testid="stToolbar"] {
-    display: none !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -361,7 +354,8 @@ def render_scenario_analysis(block_df, n_devices, label):
                 <span style="color:#6b7280;">{best_single['pick_events']} pick event(s)</span>
               </div>
               <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
-                The single block with the highest Best Profit in isolation 
+                The single block with the highest Best Profit in isolation — 
+                the baseline for any deployment decision.
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -383,7 +377,8 @@ def render_scenario_analysis(block_df, n_devices, label):
               <div class="scenario-profit" style="color:#1565c0;">{fmt_dollar(opt_profit)}</div>
               <div style="margin-top:10px;">{blocks_html}</div>
               <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
-                Best non-overlapping combination 
+                Best non-overlapping combination for your device count — 
+                exhaustive search (greedy fallback for large block sets).
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -409,7 +404,7 @@ def render_scenario_analysis(block_df, n_devices, label):
               <div style="margin-top:10px;">{blocks_html}</div>
               <div style="margin-top:8px;font-size:0.78rem;color:#6b7280;line-height:1.5;">
                 Theoretical maximum: all non-overlapping profitable blocks deployed 
-                simultaneously
+                simultaneously — your ceiling for any investment decision.
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -428,11 +423,11 @@ def render_scenario_analysis(block_df, n_devices, label):
                 "vs Optimal": best_single["best_profit"] - opt_profit,
                 "vs Highest Achievable": best_single["best_profit"] - max_profit,
             })
-       if opt_combo:
+        if opt_combo:
             rows.append({
                 "Scenario": f"🔀 Optimal Combination ({n_devices} device(s))",
                 "Blocks": len(opt_combo),
-                "Devices Required": len(opt_combo),  # ← FIXED: actual blocks allocated
+                "Devices Required": len(opt_combo),  # actual blocks allocated, not requested
                 "Total Profit": opt_profit,
                 "vs Optimal": 0.0,
                 "vs Highest Achievable": opt_profit - max_profit,
