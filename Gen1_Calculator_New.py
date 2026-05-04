@@ -428,14 +428,15 @@ def render_scenario_analysis(block_df, n_devices, label):
                 "vs Optimal": best_single["best_profit"] - opt_profit,
                 "vs Highest Achievable": best_single["best_profit"] - max_profit,
             })
-        if opt_combo:
+       if opt_combo:
             rows.append({
                 "Scenario": f"🔀 Optimal Combination ({n_devices} device(s))",
                 "Blocks": len(opt_combo),
-                "Devices Required": n_devices,
+                "Devices Required": len(opt_combo),  # ← FIXED: actual blocks allocated
                 "Total Profit": opt_profit,
                 "vs Optimal": 0.0,
                 "vs Highest Achievable": opt_profit - max_profit,
+            })
             })
         if max_combo:
             rows.append({
